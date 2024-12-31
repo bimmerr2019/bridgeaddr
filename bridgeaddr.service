@@ -1,0 +1,28 @@
+[Unit]
+Description=Bridge Address Service
+After=network.target
+
+[Service]
+Type=simple
+User=bridgeaddr
+Group=bridgeaddr
+WorkingDirectory=/opt/bridgeaddr
+ExecStart=/opt/bridgeaddr/bridgeaddr
+Environment="PORT=12345"
+Environment="SERVICE_URL=https://bridgeaddr.yourdomain.com"
+Restart=always
+RestartSec=5
+
+# Security hardening
+PrivateTmp=true
+ProtectSystem=full
+NoNewPrivileges=true
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+
+[Install]
+WantedBy=multi-user.target

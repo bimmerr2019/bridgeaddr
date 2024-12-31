@@ -1,0 +1,46 @@
+    1  apt update && apt upgrade -y
+    2  apt install git neovim
+    3  git clone https://github.com/bimmerr2019/bridgeaddr
+    4  cd bridgeaddr/
+    6  sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
+    7  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+    8  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+    9  apt update
+   10  apt install caddy
+   13  cp Caddyfile /etc/caddy/Caddyfile
+   14  sudo caddy validate --config /etc/caddy/Caddyfile
+   15  sudo caddy fmt --overwrite /etc/caddy/Caddyfile
+   16  sudo caddy validate --config /etc/caddy/Caddyfile
+   17  sudo systemctl restart caddy
+   17  sudo systemctl status caddy
+   18  sudo journalctl -fu caddy
+   41  # Create bridgeaddr user
+   42  sudo useradd -r -s /bin/false bridgeaddr
+   43  # Create and set up directory
+   44  sudo mkdir -p /opt/bridgeaddr
+   45  sudo cp /root/bridgeaddr/bridgeaddr /opt/bridgeaddr/
+   46  sudo chown -R bridgeaddr:bridgeaddr /opt/bridgeaddr
+   47  sudo chmod 755 /opt/bridgeaddr/bridgeaddr
+   19  wget https://go.dev/dl/go1.23.4.linux-amd64.tar.gz
+   20  echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+   21  go version
+   24  apt install build-essential
+  361  go mod init bridgeaddr
+  362  go get github.com/jb55/lnsocket/go
+  363  go get github.com/fiatjaf/go-lnurl
+  364  go get github.com/gorilla/mux
+  365  go get github.com/kelseyhightower/envconfig
+  366  go get github.com/rs/zerolog
+   28  cp bridgeaddr.service /etc/systemd/system/bridgeaddr.service   # put in your domain name for the server hosting bridgeaddr
+   25  make deploy
+   29  # Reload systemd to recognize the new service
+   30  sudo systemctl daemon-reload
+   31  # Enable the service to start on boot
+   32  sudo systemctl enable bridgeaddr
+   33  # Start the service
+   34  sudo systemctl start bridgeaddr
+   35  # Check the status
+   36  sudo systemctl status bridgeaddr
+   37  # Check the logs if needed
+   38  sudo journalctl -fu bridgeaddr
+   40  sudo nvim /etc/systemd/system/bridgeaddr.service
