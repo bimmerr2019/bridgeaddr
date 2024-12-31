@@ -1,133 +1,142 @@
+// makeinvoice.go
 package main
 
 import (
-	"errors"
-	"net"
-	"strconv"
-	"time"
-
-	"github.com/fiatjaf/makeinvoice"
-	"github.com/tidwall/sjson"
+    "encoding/json"
+    "fmt"
+    "net"
+    "strings"
+    "time"
+    
+    "github.com/jb55/lnsocket/go"
+    "github.com/rs/zerolog/log"
 )
 
-func makeMetadata(username, domain string) string {
-	metadata, _ := sjson.Set("[]", "0.0", "text/identifier")
-	metadata, _ = sjson.Set(metadata, "0.1", username+"@"+domain)
-
-	metadata, _ = sjson.Set(metadata, "1.0", "text/plain")
-	if v, err := net.LookupTXT("_description." + domain); err == nil && len(v) > 0 {
-		metadata, _ = sjson.Set(metadata, "1.1", v[0])
-	} else {
-		metadata, _ = sjson.Set(metadata, "1.1", "Satoshis to "+username+"@"+domain+".")
-	}
-
-	if v, err := net.LookupTXT("_image." + domain); err == nil && len(v) > 0 {
-		if b64, err := base64ImageFromURL(v[0]); err == nil {
-			metadata, _ = sjson.Set(metadata, "2.0", "image/jpeg;base64")
-			metadata, _ = sjson.Set(metadata, "2.1", b64)
-		}
-	}
-	return metadata
-}
-
 func makeInvoice(username, domain string, msat int) (bolt11 string, err error) {
-	// grab all the necessary data from DNS
-	var (
-		kind     string
-		cert     string
-		host     string
-		key      string
-		macaroon string
-		pak      string
-		waki     string
-		nodeid   string
-		rune_    string
-	)
-	if v, err := net.LookupTXT("_kind." + domain); err == nil && len(v) > 0 {
-		kind = v[0]
-	} else {
-		return "", errors.New("missing kind")
-	}
-	if v, err := net.LookupTXT("_cert." + domain); err == nil && len(v) > 0 {
-		cert = v[0]
-	}
-	if v, err := net.LookupTXT("_host." + domain); err == nil && len(v) > 0 {
-		host = v[0]
-	}
+    log.Debug().
+        Str("username", username).
+        Str("domain", domain).
+        Int("msat", msat).
+        Msg("creating invoice")
 
-	// prepare params
-	var backend makeinvoice.BackendParams
-	switch kind {
-	case "sparko":
-		if v, err := net.LookupTXT("_key." + domain); err == nil && len(v) > 0 {
-			key = v[0]
-		}
+    // grab all the necessary data from DNS
+    var (
+        kind     string
+        host     string
+        nodeid   string
+        rune_    string
+    )
 
-		backend = makeinvoice.SparkoParams{
-			Cert: cert,
-			Host: host,
-			Key:  key,
-		}
-	case "commando":
-		if v, err := net.LookupTXT("_nodeid." + domain); err == nil && len(v) > 0 {
-			nodeid = v[0]
-		}
-		if v, err := net.LookupTXT("_rune." + domain); err == nil && len(v) > 0 {
-			rune_ = v[0]
-		}
+    // Try DNS lookups with detailed logging
+    kindRecord := "_kind." + domain
+    log.Debug().Str("looking up", kindRecord).Msg("DNS lookup")
+    if v, err := net.LookupTXT(kindRecord); err == nil && len(v) > 0 {
+        kind = strings.Trim(v[0], "\"")
+        log.Debug().Str("kind", kind).Msg("found kind")
+    } else {
+        return "", fmt.Errorf("missing kind for %s: %v", kindRecord, err)
+    }
 
-		backend = makeinvoice.CommandoParams{
-			Host:   host,
-			NodeId: nodeid,
-			Rune:   rune_,
-		}
-	case "eclair":
-		backend = makeinvoice.EclairParams{
-			Cert: cert,
-			Host: host,
-		}
-	case "lnd":
-		if v, err := net.LookupTXT("_macaroon." + domain); err == nil && len(v) > 0 {
-			macaroon = v[0]
-		}
+    hostRecord := "_host." + domain
+    log.Debug().Str("looking up", hostRecord).Msg("DNS lookup")
+    if v, err := net.LookupTXT(hostRecord); err == nil && len(v) > 0 {
+        host = strings.Trim(v[0], "\"")
+        log.Debug().Str("host", host).Msg("found host")
+    } else {
+        return "", fmt.Errorf("missing host for %s: %v", hostRecord, err)
+    }
 
-		backend = makeinvoice.LNDParams{
-			Cert:     cert,
-			Host:     host,
-			Macaroon: macaroon,
-		}
-	case "lnbits":
-		if v, err := net.LookupTXT("_key." + domain); err == nil && len(v) > 0 {
-			key = v[0]
-		}
+    if kind != "commando" {
+        return "", fmt.Errorf("unsupported backend kind: %s", kind)
+    }
 
-		backend = makeinvoice.LNBitsParams{
-			Cert: cert,
-			Host: host,
-			Key:  key,
-		}
-	case "lnpay":
-		if v, err := net.LookupTXT("_pak." + domain); err == nil && len(v) > 0 {
-			pak = v[0]
-		}
+    nodeidRecord := "_nodeid." + domain
+    log.Debug().Str("looking up", nodeidRecord).Msg("DNS lookup")
+    if v, err := net.LookupTXT(nodeidRecord); err == nil && len(v) > 0 {
+        nodeid = strings.Trim(v[0], "\"")
+        log.Debug().Str("nodeid", nodeid).Msg("found nodeid")
+    } else {
+        return "", fmt.Errorf("missing nodeid for %s: %v", nodeidRecord, err)
+    }
 
-		if v, err := net.LookupTXT("_waki." + domain); err == nil && len(v) > 0 {
-			waki = v[0]
-		}
+    runeRecord := "_rune." + domain
+    log.Debug().Str("looking up", runeRecord).Msg("DNS lookup")
+    if v, err := net.LookupTXT(runeRecord); err == nil && len(v) > 0 {
+        rune_ = strings.Trim(v[0], "\"")
+        log.Debug().Msg("found rune")  // Don't log the actual rune
+    } else {
+        return "", fmt.Errorf("missing rune for %s: %v", runeRecord, err)
+    }
 
-		backend = makeinvoice.LNPayParams{
-			PublicAccessKey:  pak,
-			WalletInvoiceKey: waki,
-		}
-	}
+    // Create lnsocket connection
+    ln := &lnsocket.LNSocket{}
+    ln.GenKey()
+    
+    log.Debug().
+        Str("host", host).
+        Str("nodeid", nodeid).
+        Msg("connecting to node")
+    
+    err = ln.ConnectAndInit(host, nodeid)
+    if err != nil {
+        return "", fmt.Errorf("connect error: %v", err)
+    }
+    defer ln.Disconnect()
 
-	// actually generate the invoice
-	return makeinvoice.MakeInvoice(makeinvoice.Params{
-		Msatoshi:           int64(msat),
-		Description:        makeMetadata(username, domain),
-		UseDescriptionHash: true,
-		Backend:            backend,
+    // Prepare the invoice parameters with more unique label
+    label := fmt.Sprintf("bridgeaddr/%s/%d", username, time.Now().Unix())
+    description := fmt.Sprintf("Payment to %s@%s", username, domain)
 
-		Label: "bridgeaddr/" + strconv.FormatInt(time.Now().Unix(), 16),
-	})
+    // Create command with proper JSON structure
+    cmdMap := map[string]interface{}{
+        "amount_msat": msat,
+        "label":      label,
+        "description": description,
+    }
+    
+    cmdBytes, err := json.Marshal(cmdMap)
+    if err != nil {
+        return "", fmt.Errorf("failed to create command JSON: %v", err)
+    }
+    
+    log.Debug().
+        Str("cmd", string(cmdBytes)).
+        Msg("sending command to node")
+    
+    response, err := ln.Rpc(rune_, "invoice", string(cmdBytes))
+    if err != nil {
+        return "", fmt.Errorf("rpc error: %v", err)
+    }
+
+    log.Debug().
+        Str("response", response).
+        Msg("received response from node")
+
+    // Parse the response to get bolt11
+    var resp struct {
+        Result struct {
+            Bolt11 string `json:"bolt11"`
+        } `json:"result"`
+        Error *struct {
+            Message string `json:"message"`
+        } `json:"error,omitempty"`
+    }
+    
+    err = json.Unmarshal([]byte(response), &resp)
+    if err != nil {
+        return "", fmt.Errorf("failed to parse response: %v, raw: %s", err, response)
+    }
+
+    // Check for error in response
+    if resp.Error != nil {
+        return "", fmt.Errorf("node error: %s", resp.Error.Message)
+    }
+
+    // Validate bolt11
+    if resp.Result.Bolt11 == "" {
+        return "", fmt.Errorf("empty bolt11 in response: %s", response)
+    }
+
+    return resp.Result.Bolt11, nil
 }
+

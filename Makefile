@@ -1,7 +1,10 @@
+.PHONY: bridgeaddr deploy
+
 bridgeaddr: $(shell find . -name "*.go")
-	CC=$$(which musl-gcc) go build -ldflags='-s -w -linkmode external -extldflags "-static"' -o ./bridgeaddr
+	CGO_ENABLED=1 CC=$$(which musl-gcc) go build -tags netgo,osusergo -ldflags='-s -w -linkmode external -extldflags "-static"' -o ./bridgeaddr
 
 deploy: bridgeaddr
-	ssh root@turgot 'systemctl stop bridgeaddr'
-	scp bridgeaddr turgot:bridgeaddr/bridgeaddr
-	ssh root@turgot 'systemctl start bridgeaddr'
+	systemctl stop bridgeaddr
+	cp ./bridgeaddr /opt/bridgeaddr/bridgeaddr
+	chown bridgeaddr:bridgeaddr /opt/bridgeaddr/bridgeaddr
+	systemctl start bridgeaddr

@@ -1,40 +1,46 @@
 package main
 
 import (
-	"bytes"
-	"encoding/base64"
-	"errors"
-	"fmt"
-	"image"
-	"image/jpeg"
-	"net/http"
-	"strconv"
-
-	"github.com/nfnt/resize"
+    "encoding/base64"
+    "encoding/json"
+    "errors"
+    "fmt"
+    "io/ioutil"
+    "net/http"
+    "strconv"
 )
 
-func base64ImageFromURL(url string) (string, error) {
-	resp, err := http.Get(url)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
+func makeMetadata(username, domain string) string {
+    // Create metadata array for LNURL-pay
+    metadata := [][]string{
+        {"text/identifier", username + "@" + domain},
+        {"text/plain", "Satoshis to " + username + "@" + domain + "."},
+    }
 
-	if resp.StatusCode >= 300 {
-		return "", errors.New("image returned status " + strconv.Itoa(resp.StatusCode))
-	}
-
-	img, _, err := image.Decode(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to decode image from %s: %w", url, err)
-	}
-
-	img = resize.Resize(160, 0, img, resize.NearestNeighbor)
-	out := &bytes.Buffer{}
-	err = jpeg.Encode(out, img, &jpeg.Options{60})
-	if err != nil {
-		return "", fmt.Errorf("failed to encode image: %w", err)
-	}
-
-	return base64.StdEncoding.EncodeToString(out.Bytes()), nil
+    // Convert to JSON string
+    metadataJSON, err := json.Marshal(metadata)
+    if err != nil {
+        return "[]"
+    }
+    return string(metadataJSON)
 }
+
+func base64ImageFromURL(url string) (string, error) {
+    resp, err := http.Get(url)
+    if err != nil {
+        return "", err
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode >= 300 {
+        return "", errors.New("image returned status " + strconv.Itoa(resp.StatusCode))
+    }
+
+    data, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        return "", fmt.Errorf("failed to read image from %s: %w", url, err)
+    }
+
+    return base64.StdEncoding.EncodeToString(data), nil
+}
+
