@@ -1,3 +1,17 @@
+    # these are a few of the commands from my history for a new VPS running ubuntu that's going to be hosting the bridgeaddr
+    # you are going to need a domain for this server so that bridgeaddr.domain.com has an A record pointing to it.
+    # once running, other people can set up their LN addresses using this server, by simply setting up a few DNS records.
+    # An Ln Address requires yet another domain purchase say zap.io, and the ln address could be anything@zap.io
+    # The docs say to setup a CNAME record from zap.io to bridgeaddr.domain.com. I've found this is an issue because
+    # CNAME's arent supposed to use the a "root" domain but rather a subdomain.rootdomain.com. So, if you use a CNAME
+    # you would have to do subdomain.zap.io pointing to bridgeaddr.domain.com. However I found dnsimple.com will let you set 
+    # an ALIAS record which achieves the result of no subdomain in your ln address! So: ALIAS	zap.io	bridgeaddr.domain.com
+
+    # FYI I have no idea if the other lightning nodes work, I only fixed COMMANDO which is Core Lightning. Commando was broken because
+    # the core lightning team changed the API (Removed RPC calls)
+
+    # Good Luck!
+
     1  apt update && apt upgrade -y
     2  apt install git neovim
     3  git clone https://github.com/bimmerr2019/bridgeaddr
@@ -18,9 +32,7 @@
    42  sudo useradd -r -s /bin/false bridgeaddr
    43  # Create and set up directory
    44  sudo mkdir -p /opt/bridgeaddr
-   45  sudo cp /root/bridgeaddr/bridgeaddr /opt/bridgeaddr/
    46  sudo chown -R bridgeaddr:bridgeaddr /opt/bridgeaddr
-   47  sudo chmod 755 /opt/bridgeaddr/bridgeaddr
    19  wget https://go.dev/dl/go1.23.4.linux-amd64.tar.gz
    20  echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
    21  go version
